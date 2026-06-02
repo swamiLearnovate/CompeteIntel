@@ -3,7 +3,8 @@
 // Global App Config State
 let APP_NAME = "MarketMind";
 let activeLoadingInterval = null;
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || window.API_BASE_URL || "http://localhost:8000";
+//const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || window.API_BASE_URL || "http://localhost:8000";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || window.API_BASE_URL || "https://competeintel-backend.onrender.com";
 
 // On Page Load
 window.addEventListener('DOMContentLoaded', () => {
