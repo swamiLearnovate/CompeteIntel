@@ -3,11 +3,11 @@ import { ChevronLeft, Sparkles, Building2, Globe, MapPin, NotebookPen, ArrowRigh
 
 export default function InputPage({ theme, cardStyle, onBack, onSubmit }) {
   const [form, setForm] = useState({
-    product_name: "Flexible Ducts with Insulation",
-    company_name: "Air Q Aircon",
-    website_url: "https://airqaircon.com/services/",
-    competitor_region: "Chennai",
-    extra_context: "Focus only on Flexible Ducts with Insulation",
+    product_name: "",
+    company_name: "",
+    website_url: "",
+    competitor_region: "",
+    extra_context: "",
   });
 
   const setField = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
