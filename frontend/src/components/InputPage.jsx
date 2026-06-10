@@ -6,7 +6,7 @@ export default function InputPage({ theme, cardStyle, onBack, onSubmit }) {
     product_name: "Flexible Ducts with Insulation",
     company_name: "Air Q Aircon",
     website_url: "https://airqaircon.com/services/",
-    competitor_region: "South India",
+    competitor_region: "Chennai",
     extra_context: "Focus only on Flexible Ducts with Insulation",
   });
 

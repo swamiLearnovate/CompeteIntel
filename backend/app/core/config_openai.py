@@ -2,13 +2,14 @@ from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+
 BACKEND_DIR = Path(__file__).resolve().parents[2]
 
 
 class Settings(BaseSettings):
-    ANTHROPIC_API_KEY: str
-    ANTHROPIC_MODEL: str
-    APP_NAME: str
+    OPENAI_API_KEY: str
+    OPENAI_MODEL: str = "gpt-4o-mini"
+    APP_NAME: str = "CompeteIntel"
 
     model_config = SettingsConfigDict(
         env_file=BACKEND_DIR / ".env",

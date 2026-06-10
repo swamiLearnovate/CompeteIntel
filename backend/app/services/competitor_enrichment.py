@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import ast
 import json
 import logging
+import re
 from dataclasses import dataclass
 from typing import Any, List, Optional, Union
 
-from openai import OpenAI
+from app.core.openai_client_factory import get_openai_client
 from pydantic import BaseModel, Field, ValidationError
 
 from app.core.config import settings
@@ -51,8 +53,8 @@ class CompetitorEnrichment:
         api_key: Optional[str] = None,
         model: Optional[str] = None,
     ) -> None:
-        self.client = OpenAI(api_key=api_key or settings.OPENAI_API_KEY)
-        self.model = model or settings.OPENAI_MODEL
+        self.client = get_openai_client()
+        self.model = model or settings.OPEN_AI_MODEL
         self.scraper = WebsiteScraper()
 
     def enrich(
@@ -122,9 +124,32 @@ class CompetitorEnrichment:
                 temperature=0.2,
             )
 
+            if response.status != "completed":
+                error_msg = f"API response generation failed with status '{response.status}'."
+                if getattr(response, "error", None):
+                    error_msg += f" Error details: {response.error}"
+                logger.error(error_msg)
+                raise ValueError(error_msg)
+
             raw_text = getattr(response, "output_text", "") or ""
             raw_texts.append(raw_text)
-            payload = self._extract_json(raw_text)
+
+            if not raw_text.strip():
+                response_dump = response.model_dump() if hasattr(response, "model_dump") else str(response)
+                error_msg = (
+                    f"Model returned an empty response for competitor '{competitor.get('name', '')}' (status: {response.status}). "
+                    f"Full API response: {response_dump}"
+                )
+                logger.error(error_msg)
+                raise ValueError(error_msg)
+
+            try:
+                payload = self._extract_json(raw_text)
+            except Exception as exc:
+                logger.error("Failed to parse JSON. Raw model response was: %r", raw_text)
+                raise ValueError(
+                    f"Could not parse valid JSON from model output for competitor '{competitor.get('name', '')}'. Raw text: {raw_text[:500]}"
+                ) from exc
 
             try:
                 enriched_item = EnrichedCompetitorItem.model_validate(payload)
@@ -261,18 +286,46 @@ Competitor website text:
     def _extract_json(self, text: str) -> dict[str, Any]:
         text = text.strip()
 
+        # 1. Strip markdown code block wrappers if present (e.g. ```json ... ```)
+        if text.startswith("```"):
+            first_line_end = text.find("\n")
+            if first_line_end != -1:
+                text = text[first_line_end:].strip()
+            if text.endswith("```"):
+                text = text[:-3].strip()
+
+        # 2. Try standard json loading first
         try:
             return json.loads(text)
         except json.JSONDecodeError:
             pass
 
+        # 3. Locate the first '{' and last '}'
         start = text.find("{")
         end = text.rfind("}")
         if start != -1 and end != -1 and end > start:
             candidate = text[start : end + 1]
+
+            # Try standard loading on candidate
             try:
                 return json.loads(candidate)
             except json.JSONDecodeError:
+                pass
+
+            # 4. Try removing trailing commas before closing braces/brackets
+            cleaned = re.sub(r',\s*([\]}])', r'\1', candidate)
+            try:
+                return json.loads(cleaned)
+            except json.JSONDecodeError:
+                pass
+
+            # 5. Try ast.literal_eval as a fallback for Python-like dict
+            pythonic = candidate.replace("true", "True").replace("false", "False").replace("null", "None")
+            try:
+                val = ast.literal_eval(pythonic)
+                if isinstance(val, dict):
+                    return val
+            except Exception:
                 pass
 
         raise ValueError("Could not parse valid JSON from model output.")

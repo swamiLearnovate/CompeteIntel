@@ -47,3 +47,24 @@ export function enrichCompetitor(payload) {
     body: JSON.stringify(payload),
   });
 }
+
+export function swotAnalysis(payload) {
+  return request("/api/swot-analysis", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function gapsAnalysis(payload) {
+  return request("/api/market-gaps-insights", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function detailsAnalysis(payload) {
+  return request("/api/product-details", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}

@@ -5,9 +5,7 @@ export default function LoadingView({ progress, stepIndex, theme }) {
   const steps = [
     'Scraping target website',
     'Analyzing content',
-    'Discovering competitors',
-    'Enriching competitor data',
-    'Building pricing intelligence'
+    'Discovering competitors'
   ];
 
   return (
@@ -23,7 +21,7 @@ export default function LoadingView({ progress, stepIndex, theme }) {
         Running Competitive Pipeline
       </h2>
       <p className="max-w-md mx-auto text-base mb-8" style={{ color: theme.muted }}>
-        Our intelligent agent is scanning the target product, discovering its market rivals, and pulling real-time pricing intelligence.
+        Our intelligent agent is scanning the target product, analyzing its content, and discovering its market rivals.
       </p>
 
       {/* Progress Bar Container */}
@@ -35,7 +33,7 @@ export default function LoadingView({ progress, stepIndex, theme }) {
       </div>
 
       {/* Steps Grid */}
-      <div className="grid gap-4 sm:grid-cols-2 max-w-3xl mx-auto">
+      <div className="grid gap-4 sm:grid-cols-3 max-w-3xl mx-auto">
         {steps.map((step, index) => {
           const active = index === stepIndex;
           const done = index < stepIndex;

@@ -1,63 +1,124 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import {
   ChevronLeft,
   ExternalLink,
   Sparkles,
-  Building2,
   Globe2,
-  BadgeCheck,
   Bot,
-  Search,
-  TrendingUp,
   Layers3,
+  ClipboardList,
+  Lightbulb,
+  Info,
   Target,
   ShieldAlert,
-  Lightbulb,
-  ClipboardList,
-  FileText,
-  ArrowRight,
-  Info,
   Loader2,
 } from "lucide-react";
-import { downloadReportAsPdf } from "../utils/downloadPdf";
+import { swotAnalysis, gapsAnalysis, detailsAnalysis } from "../lib/api";
 
 export default function ReportDashboard({
   result,
-  selectedCompetitor,
-  onSelectCompetitor,
-  competitorDetails,
-  competitorLoading,
-  competitorError,
   theme,
   onBack,
 }) {
   const primary = theme?.primaryDark || "#4f46e5";
-  const [isDownloading, setIsDownloading] = useState(false);
-  const reportRef = useRef(null);
+  const [activeTab, setActiveTab] = useState("features");
 
-  const handleDownload = async () => {
-    if (isDownloading) return;
-    setIsDownloading(true);
-    try {
-      const sanitizedProductName = (result?.product_name || "report")
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/(^-|-$)/g, "");
-      const fileName = `competeintel-report-${sanitizedProductName}.pdf`;
-      await downloadReportAsPdf({ result, competitorDetails, theme }, fileName);
-    } catch (error) {
-      console.error("Failed to generate PDF:", error);
-      alert("Failed to download PDF. Please try again.");
-    } finally {
-      setIsDownloading(false);
+  const [swotData, setSwotData] = useState(null);
+  const [swotLoading, setSwotLoading] = useState(false);
+  const [swotError, setSwotError] = useState(null);
+
+  const [gapsData, setGapsData] = useState(null);
+  const [gapsLoading, setGapsLoading] = useState(false);
+  const [gapsError, setGapsError] = useState(null);
+
+  const [detailsData, setDetailsData] = useState(null);
+  const [detailsLoading, setDetailsLoading] = useState(false);
+  const [detailsError, setDetailsError] = useState(null);
+
+  useEffect(() => {
+    if (activeTab === "gaps" && !gapsData && !gapsLoading) {
+      const companyName = result?.company_name || "this company";
+      const websiteUrl = result?.website_url;
+      const productName = result?.product_name || "";
+      const competitorRegion = result?.competitor_region || "";
+      if (!websiteUrl) {
+        setGapsError("Website URL not found in results.");
+        return;
+      }
+      setGapsLoading(true);
+      setGapsError(null);
+      gapsAnalysis({
+        product_name: productName,
+        company_name: companyName,
+        website_url: websiteUrl,
+        competitor_region: competitorRegion,
+      })
+        .then((data) => {
+          setGapsData(data);
+        })
+        .catch((err) => {
+          setGapsError(err.message || "Failed to load Market Gaps & Insights.");
+        })
+        .finally(() => {
+          setGapsLoading(false);
+        });
     }
-  };
+  }, [activeTab, gapsData, gapsLoading, result]);
+
+  useEffect(() => {
+    if (activeTab === "details" && !detailsData && !detailsLoading) {
+      const companyName = result?.company_name || "this company";
+      const websiteUrl = result?.website_url;
+      const productName = result?.product_name || "";
+      if (!websiteUrl) {
+        setDetailsError("Website URL not found in results.");
+        return;
+      }
+      setDetailsLoading(true);
+      setDetailsError(null);
+      detailsAnalysis({
+        product_name: productName,
+        company_name: companyName,
+        website_url: websiteUrl,
+      })
+        .then((data) => {
+          setDetailsData(data);
+        })
+        .catch((err) => {
+          setDetailsError(err.message || "Failed to load Product Details.");
+        })
+        .finally(() => {
+          setDetailsLoading(false);
+        });
+    }
+  }, [activeTab, detailsData, detailsLoading, result]);
+
+  useEffect(() => {
+    if (activeTab === "swot" && !swotData && !swotLoading) {
+      const companyName = result?.company_name || "this company";
+      const websiteUrl = result?.website_url;
+      if (!websiteUrl) {
+        setSwotError("Website URL not found in results.");
+        return;
+      }
+      setSwotLoading(true);
+      setSwotError(null);
+      swotAnalysis({ company_name: companyName, website_url: websiteUrl })
+        .then((data) => {
+          setSwotData(data);
+        })
+        .catch((err) => {
+          setSwotError(err.message || "Failed to load SWOT analysis.");
+        })
+        .finally(() => {
+          setSwotLoading(false);
+        });
+    }
+  }, [activeTab, swotData, swotLoading, result]);
 
   const analysis = result?.analysis || {};
   const discovery = result?.competitor_discovery || {};
   const insights = result?.market_insights || {};
-  const scraped = result?.scraped_data || {};
-
   const competitors =
     discovery?.discovered_competitors ||
     discovery?.result?.discovered_competitors ||
@@ -65,311 +126,295 @@ export default function ReportDashboard({
     discovery?.result?.competitors ||
     [];
 
-  const selectedCompetitorData =
-    typeof selectedCompetitor === "number" && selectedCompetitor >= 0
-      ? competitors[selectedCompetitor] || null
-      : null;
-
   const discoveryCount = competitors.length;
-  const featureCount = toArray(analysis?.core_features).length;
-  const insightCount = toArray(insights?.recommended_next_steps).length;
+
+  const tabs = [
+    { id: "features", label: "Product Features & Target Customers", icon: Bot },
+    { id: "competitors", label: "Competitors", icon: Layers3, badge: discoveryCount },
+    { id: "swot", label: "SWOT Analysis", icon: ClipboardList },
+    { id: "gaps", label: "Market Gaps & Insights", icon: Lightbulb },
+    { id: "details", label: "Product Details", icon: Info },
+  ];
 
   return (
     <div
-      ref={reportRef}
       className="min-h-screen bg-slate-50/80 text-slate-900"
       style={{
         backgroundImage:
-          "radial-gradient(circle at top left, rgba(99,102,241,0.10), transparent 28%), radial-gradient(circle at top right, rgba(14,165,233,0.08), transparent 24%), linear-gradient(180deg, rgba(248,250,252,1), rgba(248,250,252,0.92))",
+          "radial-gradient(circle at top left, rgba(99,102,241,0.08), transparent 30%), radial-gradient(circle at top right, rgba(14,165,233,0.06), transparent 26%), linear-gradient(180deg, rgba(248,250,252,1), rgba(248,250,252,0.92))",
       }}
     >
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
-        <header className="overflow-hidden rounded-[28px] border border-white/70 bg-white/90 shadow-[0_20px_60px_rgba(15,23,42,0.08)] backdrop-blur-xl">
-          <div className="border-b border-slate-100 px-5 py-4 sm:px-6">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-              <div className="space-y-3">
-                <div className="inline-flex items-center gap-2 rounded-full border border-indigo-100 bg-indigo-50 px-3 py-1 text-[11px] font-semibold tracking-wide text-indigo-700">
-                  <Sparkles className="h-3.5 w-3.5" />
-                  CompeteIntel report
-                </div>
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8">
 
-                <div>
-                  <h1
-                    className="text-2xl font-extrabold tracking-tight sm:text-3xl"
-                    style={{ color: primary }}
-                  >
-                    Intelligence Report
-                  </h1>
-                  <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-500">
-                    Structured output for product analysis, competitor discovery, and strategic insights.
+        {/* Top Block: Header & Overview */}
+        <header className="overflow-hidden rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-[0_20px_60px_rgba(15,23,42,0.06)] backdrop-blur-xl sm:p-8">
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+            <div className="space-y-4">
+              <div className="inline-flex items-center gap-2 rounded-full border border-indigo-100 bg-indigo-50 px-3 py-1 text-[11px] font-semibold tracking-wide text-indigo-700">
+                <Sparkles className="h-3.5 w-3.5" />
+                CompeteIntel analysis
+              </div>
+
+              <div>
+                <h1
+                  className="text-3xl font-extrabold tracking-tight sm:text-4xl"
+                  style={{ color: primary }}
+                >
+                  Intelligence Dashboard
+                </h1>
+                {result?.company_name && (
+                  <p className="mt-1 text-base font-bold text-slate-600">
+                    {result.company_name}
                   </p>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-3" data-html2canvas-ignore="true">
-                  <button
-                    onClick={onBack}
-                    className="inline-flex items-center justify-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-white shadow-lg transition hover:brightness-110 active:scale-[0.99]"
-                    style={{ background: `linear-gradient(135deg, ${primary}, #7c3aed)` }}
-                  >
-                    <ChevronLeft size={16} />
-                    New Analysis
-                  </button>
-
-                  <button
-                    disabled={isDownloading}
-                    onClick={handleDownload}
-                    className={`inline-flex items-center justify-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-white shadow-lg transition hover:brightness-110 active:scale-[0.99] ${
-                      isDownloading ? "opacity-75 cursor-not-allowed" : ""
-                    }`}
-                    style={{ background: `linear-gradient(135deg, ${primary}, #7c3aed)` }}
-                  >
-                    {isDownloading ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        Generating PDF...
-                      </>
-                    ) : (
-                      <>
-                        <FileText className="h-4 w-4" />
-                        Download Report
-                      </>
-                    )}
-                  </button>
-                </div>
+                )}
+                <p className="mt-2 text-sm text-slate-500 leading-relaxed max-w-xl">
+                  Market analysis and discovered competitors for your product. Navigate through the tabs below to explore different intelligence signals.
+                </p>
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <MetricCard label="Product" value={result?.product_name || "—"} icon={Bot} tint="#eef2ff" />
-                <MetricCard label="Region" value={result?.competitor_region || "—"} icon={Globe2} tint="#ecfeff" />
-                <MetricCard label="Competitors" value={String(discoveryCount)} icon={Layers3} tint="#f5f3ff" />
-                <MetricCard label="Category" value={analysis?.category || insights?.competitive_positioning || "—"} icon={Layers3} tint="#f5f3ff" />
+              <div className="pt-2">
+                <button
+                  onClick={onBack}
+                  className="inline-flex items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold text-white shadow-lg transition hover:brightness-110 active:scale-[0.99] hover:shadow-indigo-500/20"
+                  style={{ background: `linear-gradient(135deg, ${primary}, #7c3aed)` }}
+                >
+                  <ChevronLeft size={16} />
+                  New Search
+                </button>
               </div>
+            </div>
+
+            {/* Metrics Grid */}
+            <div className="grid gap-3 sm:grid-cols-2 lg:w-1/2">
+              <MetricCard label="Product" value={result?.product_name || "—"} icon={Bot} tint="#eef2ff" />
+              <MetricCard label="Region" value={result?.competitor_region || "—"} icon={Globe2} tint="#ecfeff" />
+              <MetricCard label="Competitors Found" value={String(discoveryCount)} icon={Layers3} tint="#f5f3ff" />
+              <MetricCard label="Category" value={analysis?.category || "—"} icon={Layers3} tint="#fdf2f8" />
             </div>
           </div>
         </header>
 
-        {/* Competitor list placed immediately below the Intelligence Report block */}
-        <main className="grid gap-6 xl:grid-cols-[1.4fr_0.95fr]">
-            <Panel title="Executive summary" icon={ClipboardList}>
-              <div className="grid gap-4 md:grid-cols-2">
-                <ListBlock title="Target customers" items={analysis?.target_users} />
-                 <ListBlock title="Pricing observations" items={analysis?.pricing_observations} />
-              </div>
-              <div className="grid gap-4 md:grid-cols-1">
-                <ListBlock title="Core features" items={analysis?.core_features} />
-              </div>
-              <div className="mt-5 grid gap-4 lg:grid-cols-2">
-                <TextBlock
-                  title="Product value proposition"
-                  text={analysis?.value_proposition || "No value proposition found in the output."}
-                  icon={Target}
-                />
-                <TextBlock
-                  title="Competitive edge"
-                  text={analysis?.competitive_edge || "No competitive edge found in the output."}
-                  icon={TrendingUp}
-                />
-              </div>
+        {/* Tab Switcher */}
+        <div className="flex border-b border-slate-200 overflow-x-auto no-scrollbar scroll-smooth gap-2 pb-px" style={{ scrollbarWidth: 'none' }}>
+          {tabs.map((tab) => {
+            const Icon = tab.icon;
+            const active = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-2 border-b-2 px-4 py-3.5 text-sm font-semibold whitespace-nowrap transition-all duration-200 ${active
+                  ? "border-indigo-600 text-indigo-600"
+                  : "border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300"
+                  }`}
+              >
+                <Icon className={`h-4.5 w-4.5 ${active ? "text-indigo-600" : "text-slate-400"}`} />
+                {tab.label}
+                {tab.badge !== undefined && (
+                  <span className={`ml-1 rounded-full px-2 py-0.5 text-xs font-bold ${active ? "bg-indigo-100 text-indigo-700" : "bg-slate-100 text-slate-600"
+                    }`}>
+                    {tab.badge}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
 
-              <div className="mt-5 grid gap-4 lg:grid-cols-2">
-                <TextBlock
-                  title="Strategic positioning"
-                  text={analysis?.strategic_positioning || "No positioning statement found in the output."}
-                  icon={ShieldAlert}
-                />
-                <TextBlock
-                  title="Market summary"
-                  text={insights?.executive_summary || "No executive summary found in the output."}
-                  icon={Info}
-                />
-              </div>
-            </Panel>
-            <Panel title="SWOT Analysis" icon={ClipboardList}>
-              <div className="mt-6 grid gap-4 md:grid-cols-2">
-                <MiniCard title="Strengths" items={insights?.strengths} tone="emerald" />
-                <MiniCard title="Weaknesses" items={insights?.weaknesses} tone="rose" />
-                <MiniCard title="Opportunities" items={insights?.opportunities} tone="sky" />
-                <MiniCard title="Threats" items={insights?.threats} tone="amber" />
-              </div>  
-              <div className="mt-6 grid gap-4 md:grid-cols-1">
-                <ListBlock title="Market gaps" items={analysis?.market_gaps} highlight />
-              </div>
-              <div className="mt-6 grid gap-4 md:grid-cols-1">
-                <TextBlock
-                  title="Notes"
-                  text={joinNotes(analysis?.notes)}
-                  icon={Lightbulb}
-                  compact
-                  muted={!joinNotes(analysis?.notes)}
-                />
-              </div>   
-            </Panel>
+        {/* Tab Contents */}
+        <main className="w-full mt-2">
 
-        </main>
-
-
-
-
-        <main className="grid gap-6 xl:grid-cols-[1.4fr_0.95fr]">
-          <Panel title="Discovered competitors" icon={Layers3}>
-          {competitors.length === 0 ? (
-            <EmptyState
-              title="No competitors discovered"
-              text="The pipeline did not return competitor entries for this analysis."
-            />
-          ) : (
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-2">
-              {competitors.map((competitor, index) => {
-                const name =
-                  competitor?.name ||
-                  competitor?.company_name ||
-                  `Competitor ${index + 1}`;
-                const website = competitor?.website || competitor?.url || competitor?.domain || "";
-                const active = selectedCompetitor === index;
-
-                return (
-                  <button
-                    key={`${name}-${index}`}
-                    onClick={() => onSelectCompetitor(index, competitor)}
-                    className={`group rounded-[22px] border p-4 text-left transition-all duration-300 ${
-                      active
-                        ? "border-indigo-400 bg-indigo-50/70 shadow-lg shadow-indigo-100"
-                        : "border-slate-200 bg-white hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-md"
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="space-y-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="font-semibold text-slate-900">{name}</p>
-                          <ConfidenceBadge value={competitor?.confidence} />
-                        </div>
-                        <p className="text-xs text-slate-500">
-                          {competitor?.category || "Competitor"} •{" "}
-                          {competitor?.reason || "Relevant market participant"}
-                        </p>
-                      </div>
-                      <div className="rounded-full border border-slate-200 bg-slate-50 p-2 text-slate-400 transition group-hover:text-indigo-600">
-                        <ExternalLink className="h-4 w-4" />
-                      </div>
-                    </div>
-
-                    {competitor?.website ? (
-                      <p className="mt-4 break-all text-xs font-medium text-indigo-600 underline decoration-indigo-200 underline-offset-4">
-                        {competitor.website}
-                      </p>
-                    ) : null}
-                  </button>
-                );
-              })}
+          {/* Tab 1: Product Features & Target Customers */}
+          {activeTab === "features" && (
+            <div className="grid gap-6 md:grid-cols-3">
+              <ListBlock title="Target Customers" items={analysis?.target_users} />
+              <ListBlock title="Pricing Observations" items={analysis?.pricing_observations} />
+              <ListBlock title="Core Features" items={analysis?.core_features} />
             </div>
           )}
-        </Panel>
 
-        <Panel title="Selected competitor details" icon={Building2}>
-              {!selectedCompetitorData && !competitorDetails ? (
+          {/* Tab 2: Competitors */}
+          {activeTab === "competitors" && (
+            <Panel title="Discovered Competitors" icon={Layers3}>
+              {competitors.length === 0 ? (
                 <EmptyState
-                  title="Choose a competitor"
-                  text="Select a competitor card above to see its enrichment and pricing profile here."
-                  icon={<Sparkles className="h-6 w-6 text-indigo-500" />}
+                  title="No competitors discovered"
+                  text="The pipeline did not return competitor entries for this analysis."
                 />
-              ) : competitorLoading ? (
-                <div className="flex flex-col items-center justify-center py-10 text-sm text-slate-500">
-                  <div className="mb-4 h-10 w-10 animate-spin rounded-full border-4 border-indigo-200 border-t-indigo-600" />
-                  Enriching competitor details…
-                </div>
-              ) : competitorError ? (
-                <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
-                  {competitorError}
-                </div>
               ) : (
-                <div className="space-y-5">
-                  <div className="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
-                          Competitor profile
-                        </p>
-                        <h4 className="mt-2 text-lg font-bold text-slate-900">
-                          {selectedCompetitorData?.name || competitorDetails?.enriched_competitor?.name || "Selected competitor"}
-                        </h4>
-                        <p className="mt-1 text-sm text-slate-500">
-                          {selectedCompetitorData?.category || competitorDetails?.enriched_competitor?.category || "Profile details"}
-                        </p>
-                      </div>
-                      <ConfidenceBadge
-                        value={
-                          selectedCompetitorData?.confidence ||
-                          competitorDetails?.enriched_competitor?.confidence
-                        }
-                      />
-                    </div>
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {competitors.map((competitor, index) => {
+                    const name =
+                      competitor?.name ||
+                      competitor?.company_name ||
+                      `Competitor ${index + 1}`;
+                    const website = competitor?.website || competitor?.url || competitor?.domain || "";
 
-                    <p className="mt-4 text-sm leading-6 text-slate-600">
-                      {selectedCompetitorData?.reason ||
-                        competitorDetails?.enriched_competitor?.reason ||
-                        "Enrichment details and pricing intelligence are shown below."}
-                    </p>
-
-                    {selectedCompetitorData?.website || competitorDetails?.enriched_competitor?.website ? (
-                      <a
-                        href={selectedCompetitorData?.website || competitorDetails?.enriched_competitor?.website}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="mt-4 inline-flex items-center gap-2 rounded-full border border-indigo-100 bg-white px-4 py-2 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-50"
+                    return (
+                      <div
+                        key={`${name}-${index}`}
+                        className="group flex flex-col justify-between rounded-[22px] border border-slate-200 bg-white p-5 transition-all duration-300 hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-md"
                       >
-                        Visit website
-                        <ExternalLink className="h-3.5 w-3.5" />
-                      </a>
-                    ) : null}
-                  </div>
+                        <div className="space-y-3">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="space-y-1">
+                              <h4 className="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">
+                                {name}
+                              </h4>
+                              <p className="text-xs font-semibold text-slate-400">
+                                {competitor?.category || "Relevant Market Competitor"}
+                              </p>
+                            </div>
+                            <ConfidenceBadge value={competitor?.confidence} />
+                          </div>
+                          <p className="text-xs text-slate-500 leading-relaxed">
+                            {competitor?.reason || "Relevant market participant identified by agent."}
+                          </p>
+                        </div>
 
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <CompactJsonCard
-                      title="Enriched profile"
-                      value={competitorDetails?.enriched_competitor || {}}
-                    />
-                    <CompactJsonCard
-                      title="Pricing intelligence"
-                      value={competitorDetails?.pricing_item || {}}
-                    />
-                  </div>
+                        <div className="mt-4 pt-4 border-t border-slate-50 flex items-center justify-between">
+                          {website ? (
+                            <a
+                              href={website.startsWith("http") ? website : `https://${website}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-600 hover:text-indigo-700 transition"
+                            >
+                              Visit website
+                              <ExternalLink className="h-3.5 w-3.5" />
+                            </a>
+                          ) : (
+                            <span className="text-xs text-slate-400">No website listed</span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </Panel>
-        </main>
+          )}
 
+          {/* Tab 3: SWOT Analysis */}
+          {activeTab === "swot" && (
+            <Panel title="SWOT Analysis" icon={ClipboardList}>
+              {swotLoading ? (
+                <div className="flex flex-col items-center justify-center py-12 text-sm text-slate-500">
+                  <Loader2 className="mb-4 h-8 w-8 animate-spin text-indigo-600" />
+                  Generating SWOT analysis for {result?.company_name || "this company"}...
+                </div>
+              ) : swotError ? (
+                <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
+                  {swotError}
+                </div>
+              ) : swotData ? (
+                <div className="grid gap-4 md:grid-cols-2">
+                  <MiniCard title="Strengths" items={swotData.strengths} tone="emerald" />
+                  <MiniCard title="Weaknesses" items={swotData.weaknesses} tone="rose" />
+                  <MiniCard title="Opportunities" items={swotData.opportunities} tone="sky" />
+                  <MiniCard title="Threats" items={swotData.threats} tone="amber" />
+                </div>
+              ) : (
+                <div className="text-center py-10 text-slate-400 text-sm">
+                  No SWOT data available.
+                </div>
+              )}
+            </Panel>
+          )}
 
-        
+          {/* Tab 4: Market Gaps & Insights */}
+          {activeTab === "gaps" && (
+            <Panel title="Market Gaps & Insights" icon={Lightbulb}>
+              {gapsLoading ? (
+                <div className="flex flex-col items-center justify-center py-12 text-sm text-slate-500">
+                  <Loader2 className="mb-4 h-8 w-8 animate-spin text-indigo-600" />
+                  Generating Market Gaps & Insights for {result?.company_name || "this company"}...
+                </div>
+              ) : gapsError ? (
+                <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
+                  {gapsError}
+                </div>
+              ) : gapsData ? (
+                <div className="grid gap-6 md:grid-cols-2">
+                  <BulletListBlock title="Market Gaps" items={gapsData.market_gaps} highlight />
+                  <BulletListBlock title="Strategic Insights" items={gapsData.insights} />
+                </div>
+              ) : (
+                <div className="text-center py-10 text-slate-400 text-sm">
+                  No Market Gaps & Insights data available.
+                </div>
+              )}
+            </Panel>
+          )}
 
-        <main className="grid gap-6 xl:col-span-full">
-          
+          {/* Tab 5: Product Details */}
+          {activeTab === "details" && (
+            <Panel title="Product Details" icon={Info}>
+              {detailsLoading ? (
+                <div className="flex flex-col items-center justify-center py-12 text-sm text-slate-500">
+                  <Loader2 className="mb-4 h-8 w-8 animate-spin text-indigo-600" />
+                  Generating Product Details for {result?.company_name || "this company"}...
+                </div>
+              ) : detailsError ? (
+                <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
+                  {detailsError}
+                </div>
+              ) : detailsData ? (
+                <div className="grid gap-6 md:grid-cols-2">
+                  <TextBlock
+                    title="Product value proposition"
+                    text={detailsData.value_proposition}
+                    icon={Target}
+                  />
+                  <TextBlock
+                    title="Competitive edge"
+                    text={detailsData.competitive_edge}
+                    icon={Info}
+                  />
+                  <TextBlock
+                    title="Strategic positioning"
+                    text={detailsData.strategic_positioning}
+                    icon={ShieldAlert}
+                  />
+                  <TextBlock
+                    title="Market summary"
+                    text={detailsData.executive_summary}
+                    icon={Info}
+                  />
+                </div>
+              ) : (
+                <div className="text-center py-10 text-slate-400 text-sm">
+                  No Product Details available.
+                </div>
+              )}
+            </Panel>
+          )}
 
-          <div className="space-y-6">
-            <Panel title="Market insights" icon={TrendingUp}>
-              <div className="space-y-4">
-                <TextBlock
-                  title="Competitive positioning"
-                  text={insights?.competitive_positioning || "No competitive positioning found in the output."}
-                  icon={TrendingUp}
-                  compact
-                />
-                <TextBlock
-                  title="Recommended positioning"
-                  text={insights?.recommended_positioning || "No recommended positioning found in the output."}
-                  icon={Target}
-                  compact
-                />
-              </div>
-
-              <div className="mt-6">
+          {/* Tab 6: Market Insights */}
+          {activeTab === "insights" && (
+            <Panel title="Market Insights" icon={ShieldAlert}>
+              <div className="grid gap-6 md:grid-cols-2">
+                <div className="space-y-4">
+                  <TextBlock
+                    title="Competitive positioning"
+                    text={insights?.competitive_positioning || "No competitive positioning found in the output."}
+                    icon={Info}
+                    compact
+                  />
+                  <TextBlock
+                    title="Recommended positioning"
+                    text={insights?.recommended_positioning || "No recommended positioning found in the output."}
+                    icon={Target}
+                    compact
+                  />
+                </div>
                 <ListBlock title="Recommended next steps" items={insights?.recommended_next_steps} highlight />
               </div>
-
-              
             </Panel>
+          )}
 
-          </div>
         </main>
+
       </div>
     </div>
   );
@@ -377,7 +422,7 @@ export default function ReportDashboard({
 
 function Panel({ title, icon: Icon, children }) {
   return (
-    <section className="rounded-[30px] border border-white/80 bg-white/95 p-5 shadow-[0_18px_60px_rgba(15,23,42,0.08)] backdrop-blur-xl sm:p-6">
+    <section className="rounded-[30px] border border-white/80 bg-white/95 p-5 shadow-[0_18px_60px_rgba(15,23,42,0.06)] backdrop-blur-xl sm:p-6">
       <div className="flex items-center gap-3">
         {Icon ? (
           <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600">
@@ -410,65 +455,13 @@ function MetricCard({ label, value, icon: Icon, tint }) {
   );
 }
 
-function StatChip({ label, value, accent = "indigo" }) {
-  const palette = {
-    indigo: "border-indigo-100 bg-indigo-50 text-indigo-700",
-    emerald: "border-emerald-100 bg-emerald-50 text-emerald-700",
-    amber: "border-amber-100 bg-amber-50 text-amber-700",
-    slate: "border-slate-200 bg-slate-50 text-slate-700",
-  };
-
-  return (
-    <div className={`rounded-[18px] border px-4 py-3 ${palette[accent] || palette.slate}`}>
-      <p className="text-[11px] font-semibold uppercase tracking-[0.24em] opacity-70">{label}</p>
-      <p className="mt-1 text-sm font-bold">{value}</p>
-    </div>
-  );
-}
-
-function InfoCard({ label, value, icon: Icon }) {
-  return (
-    <div className="rounded-[20px] border border-slate-200 bg-slate-50 p-4">
-      <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-indigo-600 shadow-sm">
-          <Icon className="h-5 w-5" />
-        </div>
-        <div className="min-w-0">
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">{label}</p>
-          <p className="mt-1 truncate text-sm font-semibold text-slate-800">{value}</p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function TextBlock({ title, text, icon: Icon, compact = false, muted = false }) {
-  const body = text && String(text).trim();
-  return (
-    <div className="rounded-[20px] border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="flex items-center gap-2">
-        {Icon ? <Icon className="h-4 w-4 text-indigo-600" /> : null}
-        <h4 className="text-sm font-bold text-slate-900">{title}</h4>
-      </div>
-      <p
-        className={`mt-3 ${
-          compact ? "text-sm leading-6" : "text-[15px] leading-7"
-        } ${muted ? "text-slate-400" : "text-slate-600"}`}
-      >
-        {body || "No content available."}
-      </p>
-    </div>
-  );
-}
-
 function ListBlock({ title, items, highlight = false, compact = false }) {
   const list = toArray(items);
 
   return (
     <div
-      className={`rounded-[20px] border p-4 ${
-        highlight ? "border-indigo-100 bg-indigo-50/50" : "border-slate-200 bg-white"
-      }`}
+      className={`rounded-[20px] border p-4 ${highlight ? "border-indigo-100 bg-indigo-50/50" : "border-slate-200 bg-white"
+        }`}
     >
       <h4 className="text-sm font-bold text-slate-900">{title}</h4>
       {list.length === 0 ? (
@@ -480,6 +473,91 @@ function ListBlock({ title, items, highlight = false, compact = false }) {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+function BulletListBlock({ title, items, highlight = false }) {
+  const list = toArray(items);
+
+  return (
+    <div
+      className={`rounded-[20px] border p-5 ${
+        highlight ? "border-indigo-50/50 bg-indigo-50/20" : "border-slate-200 bg-white"
+      }`}
+    >
+      <h4 className="text-sm font-bold text-slate-900 mb-4">{title}</h4>
+      {list.length === 0 ? (
+        <p className="text-sm text-slate-400">No items available.</p>
+      ) : (
+        <ul className="space-y-3.5">
+          {list.map((item, idx) => (
+            <li key={`${title}-${idx}`} className="flex items-start gap-2.5 text-xs text-slate-600 leading-relaxed">
+              <span className="mt-1.5 flex h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-500" />
+              <span>{item}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function ConfidenceBadge({ value }) {
+  if (!value) return null;
+
+  const tone =
+    value === "high"
+      ? "bg-emerald-50 text-emerald-700 border-emerald-100"
+      : value === "medium"
+        ? "bg-amber-50 text-amber-700 border-amber-100"
+        : "bg-slate-50 text-slate-600 border-slate-200";
+
+  return (
+    <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] ${tone}`}>
+      {value}
+    </span>
+  );
+}
+
+function Tag({ text, compact = false }) {
+  const value = String(text || "").trim();
+  if (!value) return null;
+
+  return (
+    <span
+      className={`inline-flex max-w-full items-center rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600 ${compact ? "" : "shadow-sm"
+        }`}
+    >
+      <span className="max-w-[240px] truncate">{value}</span>
+    </span>
+  );
+}
+
+function EmptyState({ title, text, icon = null }) {
+  return (
+    <div className="rounded-[22px] border border-dashed border-slate-200 bg-slate-50/70 px-5 py-10 text-center">
+      {icon || <Sparkles className="mx-auto h-7 w-7 text-indigo-500" />}
+      <p className="mt-4 text-sm font-semibold text-slate-800">{title}</p>
+      <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">{text}</p>
+    </div>
+  );
+}
+
+function TextBlock({ title, text, icon: Icon, compact = false, muted = false }) {
+  const body = text && String(text).trim();
+  return (
+    <div className="rounded-[20px] border border-slate-200 bg-white p-4 shadow-sm h-full flex flex-col justify-start">
+      <div className="flex items-center gap-2">
+        {Icon ? <Icon className="h-4 w-4 text-indigo-600" /> : null}
+        <h4 className="text-sm font-bold text-slate-900">{title}</h4>
+      </div>
+      <p
+        className={`mt-3 ${compact ? "text-sm leading-6" : "text-[14px] leading-7"
+          } ${muted ? "text-slate-400" : "text-slate-600"} flex-grow`}
+      >
+        {body || "No content available."}
+      </p>
     </div>
   );
 }
@@ -516,74 +594,6 @@ function MiniCard({ title, items, tone = "slate" }) {
   );
 }
 
-function CompactJsonCard({ title, value }) {
-  const entries = Object.entries(value || {})
-    .filter(([, v]) => isSimpleValue(v))
-    .slice(0, 8);
-
-  return (
-    <div className="rounded-[20px] border border-slate-200 bg-white p-4 shadow-sm">
-      <h4 className="text-sm font-bold text-slate-900">{title}</h4>
-      {entries.length === 0 ? (
-        <p className="mt-3 text-sm text-slate-400">No displayable fields available.</p>
-      ) : (
-        <div className="mt-4 space-y-3">
-          {entries.map(([key, val]) => (
-            <div key={key} className="rounded-2xl bg-slate-50 p-3">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
-                {formatKey(key)}
-              </p>
-              <p className="mt-1 text-sm leading-6 text-slate-700">{String(val)}</p>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ConfidenceBadge({ value }) {
-  if (!value) return null;
-
-  const tone =
-    value === "high"
-      ? "bg-emerald-50 text-emerald-700 border-emerald-100"
-      : value === "medium"
-      ? "bg-amber-50 text-amber-700 border-amber-100"
-      : "bg-slate-50 text-slate-600 border-slate-200";
-
-  return (
-    <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] ${tone}`}>
-      {value}
-    </span>
-  );
-}
-
-function Tag({ text, compact = false }) {
-  const value = String(text || "").trim();
-  if (!value) return null;
-
-  return (
-    <span
-      className={`inline-flex max-w-full items-center rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600 ${
-        compact ? "" : "shadow-sm"
-      }`}
-    >
-      <span className="max-w-[240px] truncate">{value}</span>
-    </span>
-  );
-}
-
-function EmptyState({ title, text, icon = null }) {
-  return (
-    <div className="rounded-[22px] border border-dashed border-slate-200 bg-slate-50/70 px-5 py-10 text-center">
-      {icon || <Sparkles className="mx-auto h-7 w-7 text-indigo-500" />}
-      <p className="mt-4 text-sm font-semibold text-slate-800">{title}</p>
-      <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">{text}</p>
-    </div>
-  );
-}
-
 function toArray(value) {
   if (!value) return [];
   if (Array.isArray(value)) return value.map((item) => String(item).trim()).filter(Boolean);
@@ -601,29 +611,4 @@ function toArray(value) {
 function joinNotes(value) {
   const items = toArray(value);
   return items.length ? items.join(" ") : "";
-}
-
-function formatKey(key) {
-  return String(key)
-    .replace(/_/g, " ")
-    .replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
-function compactDomain(value) {
-  try {
-    const url = value.startsWith("http") ? value : `https://${value}`;
-    const parsed = new URL(url);
-    return parsed.hostname.replace(/^www\./, "");
-  } catch {
-    return value.replace(/^https?:\/\//, "").replace(/^www\./, "").split("/")[0];
-  }
-}
-
-function isSimpleValue(value) {
-  return (
-    value === null ||
-    typeof value === "string" ||
-    typeof value === "number" ||
-    typeof value === "boolean"
-  );
 }

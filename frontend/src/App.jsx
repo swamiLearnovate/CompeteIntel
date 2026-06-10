@@ -66,7 +66,7 @@ export default function App() {
         return prev + Math.floor(Math.random() * 5) + 2;
       });
       setStepIndex((prevStep) => {
-        if (prevStep >= 4) return 4;
+        if (prevStep >= 2) return 2;
         return prevStep + 1;
       });
     }, 2000);
@@ -82,7 +82,7 @@ export default function App() {
 
       clearInterval(interval);
       setProgress(100);
-      setStepIndex(4);
+      setStepIndex(2);
       setAnalysisResult(data);
       setPage("dashboard");
     } catch (err) {

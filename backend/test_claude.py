@@ -1,4 +1,18 @@
-from app.core.config import settings
+import anthropic
 
-print("API KEY:", settings.ANTHROPIC_API_KEY[:15] + "...")
-print("MODEL:", settings.ANTHROPIC_MODEL)
+client = anthropic.AnthropicBedrock(
+    aws_region="us-east-1"
+)
+
+response = client.messages.create(
+    model="us.anthropic.claude-sonnet-4-20250514-v1:0",
+    max_tokens=100,
+    messages=[
+        {
+            "role": "user",
+            "content": "Reply with only the word Hello"
+        }
+    ]
+)
+
+print(response.content[0].text)
